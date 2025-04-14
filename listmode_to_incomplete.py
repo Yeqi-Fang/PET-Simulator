@@ -724,12 +724,23 @@ def main():
                         help='Start angle of second missing sector (degrees)')
     parser.add_argument('--missing_end2', type=float, default=270,
                         help='End angle of second missing sector (degrees)')
+    parser.add_argument('--missing_start3', type=float, default=210,
+                        help='Start angle of second missing sector (degrees)')
+    parser.add_argument('--missing_end3', type=float, default=270,
+                        help='End angle of second missing sector (degrees)')    
+    parser.add_argument('--missing_start4', type=float, default=210,
+                        help='Start angle of second missing sector (degrees)')
+    parser.add_argument('--missing_end4', type=float, default=270,
+                        help='End angle of second missing sector (degrees)')   
+    
     args = parser.parse_args()
     
     # 根据命令行参数设置缺失扇区
     missing_sectors = [
         (args.missing_start1, args.missing_end1),
-        (args.missing_start2, args.missing_end2)
+        (args.missing_start2, args.missing_end2),
+        (args.missing_start3, args.missing_end3),
+        (args.missing_start4, args.missing_end4)
     ]
     
     # Ensure base output directory exists
