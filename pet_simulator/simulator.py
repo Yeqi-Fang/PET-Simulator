@@ -75,7 +75,7 @@ class PETSimulator:
         }
 
         if use_multiprocessing:
-            num_processes = min(mp.cpu_count(), 30)  # or some custom logic
+            num_processes = 12  # or some custom logic
             batch_size = num_events // num_processes
 
             with mp.Pool(num_processes) as pool:
