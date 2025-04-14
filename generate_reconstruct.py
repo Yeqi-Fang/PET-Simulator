@@ -65,7 +65,7 @@ n_iters = 1
 n_subsets = 34
 psf_fwhm_mm = 4.5
 outlier = False
-num_events = int(2e10)
+num_events = int(8e9)
 save_events_pos = False
 
 def save_events_background(file_path, events, save_full_data=False):
