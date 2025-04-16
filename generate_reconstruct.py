@@ -65,7 +65,7 @@ n_iters = 1
 n_subsets = 34
 psf_fwhm_mm = 4.5
 outlier = False
-num_events = int(8e9)
+num_events = int(2e9)
 save_events_pos = False
 
 def save_events_background(file_path, events, save_full_data=False):
@@ -307,9 +307,9 @@ def main():
     # output_dir_sinogram = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}/sinogram'
 
     base_dir = "../gratuate-thesis/data/dataset/train_npy_crop"
-    lmf_output_dir = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}/listmode'
-    output_dir = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}'
-    output_dir_sinogram = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}/sinogram'
+    lmf_output_dir = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train2/{num_events:d}/listmode'
+    output_dir = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train2/{num_events:d}'
+    output_dir_sinogram = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train2/{num_events:d}/sinogram'
     
     # Create directories
     os.makedirs(lmf_output_dir, exist_ok=True)
