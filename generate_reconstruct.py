@@ -376,34 +376,34 @@ def main():
         all_threads.append(sinogram_thread)
         
         # Reconstruct volume directly using events
-        # print("Starting reconstruction...")
-        # start_time = time.time()
-        # result_3d = reconstruct_volume_for_lmf(
-        #     detector_ids_np=events,
-        #     scanner_lut=scanner_lut,
-        #     voxel_size=voxel_size,
-        #     volume_size=volume_size,
-        #     extended_size=extended_size,
-        #     n_iters=n_iters,
-        #     n_subsets=n_subsets,
-        #     psf_fwhm_mm=psf_fwhm_mm,
-        #     detector_outlier=outlier
-        # )
-        # reconstruction_time = time.time() - start_time
-        # print(f"Reconstruction completed in {reconstruction_time:.2f} seconds.")
+        print("Starting reconstruction...")
+        start_time = time.time()
+        result_3d = reconstruct_volume_for_lmf(
+            detector_ids_np=events,
+            scanner_lut=scanner_lut,
+            voxel_size=voxel_size,
+            volume_size=volume_size,
+            extended_size=extended_size,
+            n_iters=n_iters,
+            n_subsets=n_subsets,
+            psf_fwhm_mm=psf_fwhm_mm,
+            detector_outlier=outlier
+        )
+        reconstruction_time = time.time() - start_time
+        print(f"Reconstruction completed in {reconstruction_time:.2f} seconds.")
         
         # Save reconstructed volume
-        # np.save(out_path, result_3d)
-        # print(f"  -> Saved reconstructed volume to {out_path}")
+        np.save(out_path, result_3d)
+        print(f"  -> Saved reconstructed volume to {out_path}")
         
         # Create visualizations in background
-        # vis_thread = create_comparison_visualizations(
-        #     image=image,
-        #     result_3d=result_3d,
-        #     log_dir=log_dir,
-        #     image_filename=image_filename
-        # )
-        # all_threads.append(vis_thread)
+        vis_thread = create_comparison_visualizations(
+            image=image,
+            result_3d=result_3d,
+            log_dir=log_dir,
+            image_filename=image_filename
+        )
+        all_threads.append(vis_thread)
         
         # Release memory
         del simulator, image
