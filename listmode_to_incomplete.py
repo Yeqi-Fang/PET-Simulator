@@ -807,8 +807,8 @@ def main():
     
     # Process each file
     for i, lm_file in enumerate(listmode_files):
-        if i < 160:
-            continue
+        # if i < 160:
+        #     continue
         print(f"\n[{i+1}/{len(listmode_files)}] Processing {lm_file}")
         
         # 处理单个文件
