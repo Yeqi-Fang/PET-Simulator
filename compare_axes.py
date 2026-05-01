@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 OLD_DIR = r'D:\PET\dataset\train_npy_crop'
-NEW_DIRS = [r'D:\data\ADNI_AD_npy', r'D:\data\ADNI_MCI_npy']
+NEW_DIRS = [r'D:\data\ADNI_AD_npy_rotated', r'D:\data\ADNI_MCI_npy_rotated']
 OUTPUT_DIR = r'D:\data\compare_axes'
 N_SLICES = 5   # 每张图显示多少个切片
 

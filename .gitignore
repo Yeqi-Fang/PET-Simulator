@@ -16,3 +16,4 @@ log/
 data/
 incomplete/
 images/
+.vscode/settings.json
