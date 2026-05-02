@@ -19,6 +19,7 @@ Usage:
 """
 
 import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'  # 修复 libiomp5md.dll 与 libomp.dll 冲突
 import re
 import glob
 import numpy as np
@@ -84,8 +85,9 @@ def reconstruct_volume_for_lmf(lmf_file=None,
     else:
         raise ValueError("Either lmf_file or detector_ids_np must be provided")
     
-    # Convert to torch.Tensor
-    detector_ids = torch.from_numpy(detector_ids_np).long()
+    # Convert to torch.Tensor（先转 int32 再转 long，避免 float32→long 的内存翻倍）
+    detector_ids = torch.from_numpy(detector_ids_np.astype(np.int32)).long()
+    del detector_ids_np  # 原始数组不再需要，立刻释放
 
     # Get scanner LUT either from provided tensor or from file
     if scanner_lut is None and lut_file is not None:

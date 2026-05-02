@@ -4,6 +4,7 @@
 import os
 import re
 import glob
+import gc
 import numpy as np
 import torch
 import time
@@ -67,6 +68,11 @@ psf_fwhm_mm = 4.5
 outlier = False
 num_events = int(2e9)
 save_events_pos = False
+
+# 流水线模式开关：
+#   'simulate_only' - 只模拟并保存 listmode（内存友好，适合大 num_events）
+#   'full'          - 模拟 + 重建一体（适合验证小批量）
+PIPELINE_MODE = 'simulate_only'
 
 def save_events_background(file_path, events, save_full_data=False):
     """Save events in a background thread to avoid blocking the main process."""
@@ -306,41 +312,48 @@ def main():
     # output_dir = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}'
     # output_dir_sinogram = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}/sinogram'
 
-    base_dir = "../gratuate-thesis/data/dataset/test_npy_crop"
-    lmf_output_dir = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_test2/{num_events:d}/listmode'
-    output_dir = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_test2/{num_events:d}'
-    output_dir_sinogram = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_test2/{num_events:d}/sinogram'
-    
+    base_dir = r"D:\data\ADNI_AD_npy_processed"
+    lmf_output_dir = rf"D:\data\pet_output\{num_events:d}\listmode"
+    output_dir     = rf"D:\data\pet_output\{num_events:d}"
+    output_dir_sinogram = rf"D:\data\pet_output\{num_events:d}\sinogram"
+
     # Create directories
     os.makedirs(lmf_output_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(output_dir_sinogram, exist_ok=True)
-    
+
     # Create log directory
     log_dir = os.path.join("log", datetime.now().strftime("%Y%m%d_%H%M%S"))
     os.makedirs(log_dir, exist_ok=True)
     print(f"Log directory: {log_dir}")
-    
+
     # Create and cache the scanner LUT for reuse
     lut_data = np.loadtxt(lut_file, skiprows=1)
     scanner_lut_np = lut_data[:, 1:4]
     scanner_lut = torch.from_numpy(scanner_lut_np).float()
-    
-    # Set up thread pool for managing parallel operations
-    max_parallel_processes = min(16, os.cpu_count())
-    print(f"Using up to {max_parallel_processes} parallel threads for I/O operations")
-    
-    # Keep track of all background threads
-    all_threads = []
-    
-    # Process each image file
-    for i in range(36):
 
-        # start time 
+    # Set up thread pool for managing parallel operations
+    max_parallel_processes = min(8, os.cpu_count())
+    print(f"Using up to {max_parallel_processes} parallel threads for I/O operations")
+
+    all_threads = []  # 保留结构，现在每轮都同步等待，不再积累
+
+    # Collect all .npy files from base_dir
+    image_paths = sorted(glob.glob(os.path.join(base_dir, "*.npy")))
+    print(f"Found {len(image_paths)} phantom files in {base_dir}")
+
+    # Limit for validation; set to None to process all files
+    max_files = 5
+    if max_files is not None:
+        image_paths = image_paths[:max_files]
+        print(f"Running validation on first {max_files} files")
+
+    for image_path in image_paths:
+
+        # start time
         t_start_total = time.time()
 
-        image_filename = f"3d_image_{i}.npy"
-        image_path = os.path.join(base_dir, image_filename)
+        image_filename = os.path.splitext(os.path.basename(image_path))[0]
         print(f"\nProcessing {image_filename} ...")
         
         # Load the 3D image
@@ -357,72 +370,77 @@ def main():
         print(f"Generated {len(events)} valid events in {simulation_time:.2f} seconds.")
         
         # Generate output filenames
-        minimal_file = os.path.join(lmf_output_dir, f"listmode_data_minimal_{i}_{num_events}")
-        out_name = f"reconstructed_index{i}_num{num_events}"
+        minimal_file = os.path.join(lmf_output_dir, f"listmode_{image_filename}")
+        out_name = f"reconstructed_{image_filename}"
         out_path = os.path.join(output_dir, out_name)
         out_path_sinogram = os.path.join(output_dir_sinogram, out_name)
         
-        # Start background processes for saving events and generating sinogram
-        events_thread = save_events_background(minimal_file, events, save_full_data=False)
-        all_threads.append(events_thread)
-        
-        sinogram_thread = process_and_save_sinogram_background(
-            events=events,
-            info=info,
-            output_path=out_path_sinogram,
-            log_dir=log_dir,
-            image_filename=image_filename
-        )
-        all_threads.append(sinogram_thread)
-        
-        # Reconstruct volume directly using events
-        print("Starting reconstruction...")
-        start_time = time.time()
-        result_3d = reconstruct_volume_for_lmf(
-            detector_ids_np=events,
-            scanner_lut=scanner_lut,
-            voxel_size=voxel_size,
-            volume_size=volume_size,
-            extended_size=extended_size,
-            n_iters=n_iters,
-            n_subsets=n_subsets,
-            psf_fwhm_mm=psf_fwhm_mm,
-            detector_outlier=outlier
-        )
-        reconstruction_time = time.time() - start_time
-        print(f"Reconstruction completed in {reconstruction_time:.2f} seconds.")
-        
-        # Save reconstructed volume
-        np.save(out_path, result_3d)
-        print(f"  -> Saved reconstructed volume to {out_path}")
-        
-        # Create visualizations in background
-        vis_thread = create_comparison_visualizations(
-            image=image,
-            result_3d=result_3d,
-            log_dir=log_dir,
-            image_filename=image_filename
-        )
-        all_threads.append(vis_thread)
-        
-        # Release memory
-        del simulator, image
-        
-        # Limit parallel threads to avoid system overload
-        active_threads = [t for t in all_threads if t.is_alive()]
-        while len(active_threads) >= max_parallel_processes:
-            time.sleep(0.5)
-            active_threads = [t for t in all_threads if t.is_alive()]
-        
-        print(f"Active background threads: {len(active_threads)}/{len(all_threads)}")
+        if PIPELINE_MODE == 'simulate_only':
+            # ── 只模拟，保存 listmode + sinogram，不重建 ──────────────────
+            events_thread = save_events_background(minimal_file, events, save_full_data=False)
+            sinogram_thread = process_and_save_sinogram_background(
+                events=events,
+                info=info,
+                output_path=out_path_sinogram,
+                log_dir=log_dir,
+                image_filename=image_filename
+            )
+            events_thread.join()
+            sinogram_thread.join()
+            del events, simulator, image
+            gc.collect()
+
+        else:
+            # ── 全流程：模拟 + 重建（仅建议 num_events <= 2e8）──────────────
+            events_thread = save_events_background(minimal_file, events, save_full_data=False)
+            sinogram_thread = process_and_save_sinogram_background(
+                events=events,
+                info=info,
+                output_path=out_path_sinogram,
+                log_dir=log_dir,
+                image_filename=image_filename
+            )
+            events_thread.join()
+            sinogram_thread.join()
+
+            print("Starting reconstruction...")
+            start_time = time.time()
+            result_3d = reconstruct_volume_for_lmf(
+                detector_ids_np=events,
+                scanner_lut=scanner_lut,
+                voxel_size=voxel_size,
+                volume_size=volume_size,
+                extended_size=extended_size,
+                n_iters=n_iters,
+                n_subsets=n_subsets,
+                psf_fwhm_mm=psf_fwhm_mm,
+                detector_outlier=outlier
+            )
+            print(f"Reconstruction completed in {time.time()-start_time:.2f}s.")
+            del events
+            torch.cuda.empty_cache()
+            gc.collect()
+
+            np.save(out_path, result_3d)
+            print(f"  -> Saved reconstructed volume to {out_path}")
+
+            vis_thread = create_comparison_visualizations(
+                image=image, result_3d=result_3d,
+                log_dir=log_dir, image_filename=image_filename
+            )
+            vis_thread.join()
+            del simulator, image, result_3d
+            torch.cuda.empty_cache()
+            gc.collect()
 
         t_end_total = time.time()
-        print(f"Elapsed total time: {t_end_total - t_start_total}")
-        
-    # Wait for all background threads to complete
-    print(f"\nWaiting for {len([t for t in all_threads if t.is_alive()])} background threads to complete...")
-    for thread in all_threads:
-        thread.join()
+        print(f"Elapsed total time: {t_end_total - t_start_total:.1f}s")
+
+    print("\nAll processing complete!")
+    if PIPELINE_MODE == 'simulate_only':
+        print(f"Listmode saved to: {lmf_output_dir}")
+        print(f"Sinogram  saved to: {output_dir_sinogram}")
+        print(f"\nNext step: python reconstruction_all.py --lmf_root {lmf_output_dir} --lut_file detector_lut.txt --output_dir {output_dir}")
     
     print("\nAll processing complete!")
 
