@@ -33,3 +33,20 @@ python listmode_to_incomplete.py --input_dir /mnt/d/fyq/sinogram/reconstruction_
 python listmode_to_incomplete.py --input_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_test2/2000000000/listmode --output_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_test2/2000000000/listmode_i_6_9_10_13 --sinogram_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_test2/2000000000/sinogram_i_6_9_10_13 --num_events 2000000000 --visualize --missing_start1 60 --missing_end1 120 --missing_start2 130 --missing_end2 170
 
 python listmode_to_incomplete.py --input_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_train2/2000000000/listmode --output_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_train2/2000000000/listmode_i_6_9_10_13 --sinogram_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_train2/2000000000/sinogram_i_6_9_10_13 --num_events 2000000000 --visualize --missing_start1 60 --missing_end1 120 --missing_start2 130 --missing_end2 170
+
+
+python listmode_to_incomplete_new.py ^
+    --input_dir "E:\data\pet_output\2000000000\listmode" ^
+    --output_dir "E:\data\pet_output\2000000000\listmode_i_60_120_240_300" ^
+    --sinogram_dir "E:\data\pet_output\2000000000\sinogram" ^
+    --num_events 2000000000 ^
+    --visualize ^
+    --missing_start1 60 --missing_end1 120 ^
+    --missing_start2 240 --missing_end2 300
+
+python renamee_new.py ^
+    --sinogram_dir   "E:\data\pet_output\2000000000\sinogram" ^
+    --incomplete_dir "E:\data\pet_output\2000000000\listmode_i_60_120_240_300\sinogram_incomplete" ^
+    --output_dir     "E:\data\pet_output\2000000000\2e9" ^
+    --num_events     2000000000 ^
+    --n_train        180

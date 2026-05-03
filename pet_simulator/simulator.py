@@ -75,8 +75,12 @@ class PETSimulator:
         }
 
         if use_multiprocessing:
-            num_processes = min(mp.cpu_count(), 30)  # Limit to number of events or available CPUs
+            num_processes = min(mp.cpu_count(), 16)  # Limit to number of events or available CPUs
             batch_size = num_events // num_processes
+            n_cols = 5 if self.save_events_pos else 2
+
+            buf = np.empty((620_000_000, n_cols), dtype=np.float32)
+            write_pos = 0
 
             with mp.Pool(num_processes) as pool:
                 process_batch_partial = partial(
@@ -84,13 +88,14 @@ class PETSimulator:
                     batch_size=batch_size,
                     shared_data=shared_data
                 )
-                # try:
-                results = pool.map(process_batch_partial, range(num_processes))
-                # except mp.pool.MaybeEncodingError as e:
-                #     # try again with the same config
-                #     print(f"Error: {e}")
-                #     results = pool.map(process_batch_partial, range(num_processes))
-            total_events = np.vstack(results)
+                for result in pool.imap(process_batch_partial, range(num_processes)):
+                    n = len(result)
+                    buf[write_pos:write_pos + n] = result
+                    write_pos += n
+                    del result
+
+            total_events = buf[:write_pos].copy()
+            del buf
         else:
             # Single-process approach: just call simulate_batch directly in a loop.
             from .numba_utils import simulate_batch  # or reuse the import at top

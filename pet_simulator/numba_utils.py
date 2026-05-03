@@ -86,10 +86,15 @@ def simulate_batch(batch_size: int, image: np.ndarray, shape: Tuple[int, int, in
       - detector2_x, detector2_y, detector2_z (columns 5-7)
       - event_x, event_y, event_z (columns 8-10)
     """
+    # Pre-allocate based on expected hit rate (~27%) with 50% safety margin → 40%.
+    # This avoids allocating batch_size rows (worst-case) when only ~27% are valid,
+    # reducing per-process memory from 1 GB to 0.4 GB (16 GB → 6.4 GB total).
+    # If valid_count reaches max_valid the loop exits early (very unlikely at 40%).
+    max_valid = int(batch_size * 0.40)
     if save_events_pos:
-        events = np.zeros((batch_size, 5), dtype=np.float32)
+        events = np.zeros((max_valid, 5), dtype=np.float32)
     else:
-        events = np.zeros((batch_size, 2), dtype=np.float32)
+        events = np.zeros((max_valid, 2), dtype=np.float32)
     valid_count = 0
 
     for _ in range(batch_size):
@@ -109,7 +114,7 @@ def simulate_batch(batch_size: int, image: np.ndarray, shape: Tuple[int, int, in
         phi = np.random.uniform(0, 2 * np.pi)
         cos_theta = np.random.uniform(-1, 1)
         sin_theta = np.sqrt(1 - cos_theta**2)
-        
+
         dir1 = np.array([sin_theta * np.cos(phi),
                          sin_theta * np.sin(phi),
                          cos_theta], dtype=np.float32)
@@ -122,6 +127,8 @@ def simulate_batch(batch_size: int, image: np.ndarray, shape: Tuple[int, int, in
             det2 = find_detector_intersection(pos, dir2, detector_positions, radius,
                                               num_rings, crystal_axial_spacing)
             if det2 >= 0:
+                if valid_count >= max_valid:
+                    break  # buffer full, stop early
                 if save_events_pos:
                     events[valid_count, 0] = det1
                     events[valid_count, 1] = det2

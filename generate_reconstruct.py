@@ -313,9 +313,9 @@ def main():
     # output_dir_sinogram = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}/sinogram'
 
     base_dir = r"D:\data\ADNI_AD_npy_processed"
-    lmf_output_dir = rf"D:\data\pet_output\{num_events:d}\listmode"
-    output_dir     = rf"D:\data\pet_output\{num_events:d}"
-    output_dir_sinogram = rf"D:\data\pet_output\{num_events:d}\sinogram"
+    lmf_output_dir = rf"E:\data\pet_output\{num_events:d}\listmode"
+    output_dir     = rf"E:\data\pet_output\{num_events:d}"
+    output_dir_sinogram = rf"E:\data\pet_output\{num_events:d}\sinogram"
 
     # Create directories
     os.makedirs(lmf_output_dir, exist_ok=True)
@@ -336,25 +336,31 @@ def main():
     max_parallel_processes = min(8, os.cpu_count())
     print(f"Using up to {max_parallel_processes} parallel threads for I/O operations")
 
-    all_threads = []  # 保留结构，现在每轮都同步等待，不再积累
-
     # Collect all .npy files from base_dir
     image_paths = sorted(glob.glob(os.path.join(base_dir, "*.npy")))
     print(f"Found {len(image_paths)} phantom files in {base_dir}")
 
     # Limit for validation; set to None to process all files
-    max_files = 5
+    max_files = None
     if max_files is not None:
         image_paths = image_paths[:max_files]
         print(f"Running validation on first {max_files} files")
 
-    for image_path in image_paths:
+    for idx, image_path in enumerate(image_paths):
 
         # start time
         t_start_total = time.time()
 
         image_filename = os.path.splitext(os.path.basename(image_path))[0]
-        print(f"\nProcessing {image_filename} ...")
+
+        # Skip already-processed files so the run can be safely resumed after interruption
+        sinogram_done = os.path.join(output_dir_sinogram, f"reconstructed_{image_filename}.npy")
+        listmode_done = os.path.join(lmf_output_dir, f"listmode_{image_filename}.npz")
+        if os.path.exists(sinogram_done) and os.path.exists(listmode_done):
+            print(f"[{idx+1}/{len(image_paths)}] Skipping {image_filename} (already done)")
+            continue
+
+        print(f"\n[{idx+1}/{len(image_paths)}] Processing {image_filename} ...")
         
         # Load the 3D image
         image = np.load(image_path)

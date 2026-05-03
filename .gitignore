@@ -18,3 +18,4 @@ incomplete/
 images/
 .claude/settings.local.json
 .vscode/settings.json
+.claude/*
