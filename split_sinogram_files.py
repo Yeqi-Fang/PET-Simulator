@@ -64,8 +64,9 @@ def split_sinogram_files(base_dir, output_base_dir):
 
 def main():
     # Process both train and test directories
-    base_dirs = ["2e9smooth/train", "2e9smooth/test"]
-    output_base_dir = "2e9div_smooth"
+    base_dirs = [r"D:\data\pet_output\2000000000\2e9smooth_add\train",
+                r"D:\data\pet_output\2000000000\2e9smooth_add\test"]
+    output_base_dir = r"C:\Users\MECHREVO\D\pet_output\2000000000\2e9div_smooth_add"
     
     for base_dir in base_dirs:
         # Get the subfolder (train or test)

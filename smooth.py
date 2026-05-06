@@ -110,8 +110,9 @@ def smooth_sinogram_files(base_dir, output_base_dir, info, batch_size=1):
 
 def main():
     # Paths
-    base_dirs = ["2e9/train", "2e9/test"]
-    output_base_dir = "2e9smooth"
+    base_dirs = [r"D:\data\pet_output\2000000000\2e9_add\train",
+                r"D:\data\pet_output\2000000000\2e9_add\test"]
+    output_base_dir = r"D:\data\pet_output\2000000000\2e9smooth_add"
     
     # Process both train and test directories
     for base_dir in base_dirs:

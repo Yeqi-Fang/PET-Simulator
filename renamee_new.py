@@ -20,17 +20,18 @@ renamee_new.py
 
 Usage:
   python renamee_new.py ^
-      --sinogram_dir        "E:\\data\\pet_output\\2000000000\\sinogram" ^
-      --incomplete_dir      "E:\\data\\pet_output\\2000000000\\listmode_i_60_120_240_300\\sinogram_incomplete" ^
-      --output_dir          "E:\\data\\pet_output\\2000000000\\2e9" ^
-      --num_events          2000000000 ^
-      --n_train             180
+      --sinogram_dir   "E:\\data\\pet_output\\2000000000\\sinogram" ^
+      --incomplete_dir "E:\\data\\pet_output\\2000000000\\listmode_i_60_120_240_300\\sinogram_incomplete" ^
+      --output_dir     "E:\\data\\pet_output\\2000000000\\2e9" ^
+      --num_events     2000000000 ^
+      --n_train        180
 """
 
 import os
 import glob
 import shutil
 import argparse
+import csv
 
 
 def main():
@@ -46,73 +47,146 @@ def main():
                         help='Number of files for training set (rest go to test)')
     args = parser.parse_args()
 
-    # ── 1. 收集并排序 complete sinogram ────────────────────────────────────
-    complete_files = sorted(glob.glob(os.path.join(args.sinogram_dir, 'reconstructed_*.npy')))
+    csv_path = os.path.join(args.output_dir, 'rename_log.csv')
+
+    # ── 1. 从 CSV 还原已完成的 src→dst 映射 ──────────────────────────────────
+    # BUG FIX: 不能在 resume 时重新 glob sinogram_dir 来构建 complete_files，
+    # 因为已移走的文件不在那里了，导致 global_idx 错位。
+    # 正确做法：用 CSV 里记录的原始 src 路径 + sinogram_dir 中剩余文件，
+    # 合并排序还原出原始有序列表。
+    done_complete_src2dst = {}   # src_path -> dst_path
+    done_incomplete_src2dst = {} # src_path -> dst_path
+
+    if os.path.exists(csv_path):
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            for row in csv.DictReader(f):
+                if row['type'] == 'complete':
+                    done_complete_src2dst[row['src']] = row['dst']
+                else:
+                    done_incomplete_src2dst[row['src']] = row['dst']
+        print(f"Resume mode: {len(done_complete_src2dst)} complete + "
+              f"{len(done_incomplete_src2dst)} incomplete already done in CSV")
+
+    # ── 2. 还原原始 complete 文件列表（已移走的 + 仍在目录里的，统一排序）──
+    remaining_complete = glob.glob(os.path.join(args.sinogram_dir, 'reconstructed_*.npy'))
+    complete_files = sorted(
+        list(done_complete_src2dst.keys()) + remaining_complete
+    )
     n_total = len(complete_files)
-    print(f"Found {n_total} complete sinograms in {args.sinogram_dir}")
+    print(f"Total complete sinograms (CSV+remaining): {n_total}")
 
     if n_total == 0:
-        print("ERROR: no complete sinogram files found, check --sinogram_dir")
+        print("ERROR: no complete sinogram files found")
         return
 
     n_train = args.n_train
     n_test  = n_total - n_train
     print(f"Split: train={n_train}, test={n_test}")
 
-    # ── 2. 验证 incomplete sinogram 数量 ────────────────────────────────────
-    incomplete_files_check = glob.glob(
+    # ── 3. 验证 incomplete 数量 ───────────────────────────────────────────────
+    remaining_incomplete = glob.glob(
         os.path.join(args.incomplete_dir, f'incomplete_index*_num{args.num_events}.npy')
     )
-    print(f"Found {len(incomplete_files_check)} incomplete sinograms in {args.incomplete_dir}")
-    if len(incomplete_files_check) != n_total:
-        print(f"WARNING: count mismatch ({len(incomplete_files_check)} incomplete vs {n_total} complete). "
-              "Continuing anyway — missing files will be skipped.")
+    n_incomplete = len(done_incomplete_src2dst) + len(remaining_incomplete)
+    print(f"Total incomplete sinograms (CSV+remaining): {n_incomplete}")
+    if n_incomplete != n_total:
+        print(f"WARNING: count mismatch ({n_incomplete} incomplete vs {n_total} complete). "
+              "Missing files will be skipped.")
 
-    # ── 3. 创建输出目录 ───────────────────────────────────────────────────────
+    # ── 4. 创建输出目录 ───────────────────────────────────────────────────────
     train_dir = os.path.join(args.output_dir, 'train')
     test_dir  = os.path.join(args.output_dir, 'test')
     os.makedirs(train_dir, exist_ok=True)
     os.makedirs(test_dir,  exist_ok=True)
     print(f"Output dirs:\n  train → {train_dir}\n  test  → {test_dir}")
 
-    # ── 4. 复制并重命名 ───────────────────────────────────────────────────────
-    skipped = 0
-    for global_idx, complete_path in enumerate(complete_files):
-        # 0-based global index → 0-based j for incomplete
-        j = global_idx                          # incomplete_index{j}_num{num_events}.npy
-        incomplete_path = os.path.join(
-            args.incomplete_dir,
-            f'incomplete_index{j}_num{args.num_events}.npy'
-        )
+    # ── 5. 移动并重命名 ───────────────────────────────────────────────────────
+    skipped  = 0
+    resumed  = 0
+    is_new   = (len(done_complete_src2dst) == 0 and len(done_incomplete_src2dst) == 0)
 
-        # 决定属于 train 还是 test，以及目录内 1-based 编号
-        if global_idx < n_train:
-            dst_dir    = train_dir
-            local_idx  = global_idx + 1          # 1-based within train
-        else:
-            dst_dir    = test_dir
-            local_idx  = global_idx - n_train + 1  # 1-based within test
+    with open(csv_path, 'a', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=['split', 'type', 'src', 'dst'])
+        if is_new:
+            writer.writeheader()
+            csvfile.flush()
 
-        # 目标路径
-        dst_complete   = os.path.join(dst_dir, f'complete_{local_idx}.npy')
-        dst_incomplete = os.path.join(dst_dir, f'incomplete_{local_idx}.npy')
+        for global_idx, complete_path in enumerate(complete_files):
+            j = global_idx
+            incomplete_path = os.path.join(
+                args.incomplete_dir,
+                f'incomplete_index{j}_num{args.num_events}.npy'
+            )
 
-        # 复制 complete
-        shutil.copy2(complete_path, dst_complete)
+            if global_idx < n_train:
+                dst_dir   = train_dir
+                local_idx = global_idx + 1
+                split     = 'train'
+            else:
+                dst_dir   = test_dir
+                local_idx = global_idx - n_train + 1
+                split     = 'test'
 
-        # 复制 incomplete（文件可能不存在）
-        if os.path.exists(incomplete_path):
-            shutil.copy2(incomplete_path, dst_incomplete)
-        else:
-            print(f"  [WARN] incomplete not found, skipping: {incomplete_path}")
-            skipped += 1
+            dst_complete   = os.path.join(dst_dir, f'complete_{local_idx}.npy')
+            dst_incomplete = os.path.join(dst_dir, f'incomplete_{local_idx}.npy')
 
-        if (global_idx + 1) % 20 == 0 or global_idx + 1 == n_total:
-            print(f"  [{global_idx+1}/{n_total}] done")
+            # ── 移动 complete ────────────────────────────────────────────────
+            if complete_path in done_complete_src2dst:
+                # 已在 CSV 里记录：验证 dst 一致且文件存在
+                recorded_dst = done_complete_src2dst[complete_path]
+                if recorded_dst == dst_complete and os.path.exists(dst_complete):
+                    resumed += 1  # 正确完成，跳过
+                else:
+                    print(f"  [ERROR] Mismatch at global_idx={global_idx}: "
+                          f"CSV dst={recorded_dst}, expected={dst_complete}, "
+                          f"exists={os.path.exists(dst_complete)}")
+            elif os.path.exists(dst_complete):
+                # dst 已存在但不在 CSV → 残缺文件，删除重移
+                print(f"  [WARN] Removing stale dst: {dst_complete}")
+                os.remove(dst_complete)
+                shutil.move(complete_path, dst_complete)
+                writer.writerow({'split': split, 'type': 'complete',
+                                 'src': complete_path, 'dst': dst_complete})
+                csvfile.flush()
+            elif os.path.exists(complete_path):
+                shutil.move(complete_path, dst_complete)
+                writer.writerow({'split': split, 'type': 'complete',
+                                 'src': complete_path, 'dst': dst_complete})
+                csvfile.flush()
+            else:
+                print(f"  [ERROR] src not found and not in CSV: {complete_path}")
+
+            # ── 移动 incomplete ──────────────────────────────────────────────
+            if incomplete_path in done_incomplete_src2dst:
+                recorded_dst = done_incomplete_src2dst[incomplete_path]
+                if recorded_dst == dst_incomplete and os.path.exists(dst_incomplete):
+                    pass  # 正确完成，跳过
+                else:
+                    print(f"  [WARN] Incomplete mismatch at global_idx={global_idx}")
+            elif os.path.exists(dst_incomplete):
+                print(f"  [WARN] Removing stale dst: {dst_incomplete}")
+                os.remove(dst_incomplete)
+                if os.path.exists(incomplete_path):
+                    shutil.move(incomplete_path, dst_incomplete)
+                    writer.writerow({'split': split, 'type': 'incomplete',
+                                     'src': incomplete_path, 'dst': dst_incomplete})
+                    csvfile.flush()
+            elif os.path.exists(incomplete_path):
+                shutil.move(incomplete_path, dst_incomplete)
+                writer.writerow({'split': split, 'type': 'incomplete',
+                                 'src': incomplete_path, 'dst': dst_incomplete})
+                csvfile.flush()
+            else:
+                print(f"  [WARN] incomplete not found, skipping: {incomplete_path}")
+                skipped += 1
+
+            if (global_idx + 1) % 20 == 0 or global_idx + 1 == n_total:
+                print(f"  [{global_idx+1}/{n_total}] done (resumed={resumed}, skipped={skipped})")
 
     print(f"\nFinished. skipped={skipped}")
     print(f"  train: complete_1~{n_train}.npy  /  incomplete_1~{n_train}.npy")
     print(f"  test:  complete_1~{n_test}.npy   /  incomplete_1~{n_test}.npy")
+    print(f"  Rename log → {csv_path}")
 
 
 if __name__ == '__main__':

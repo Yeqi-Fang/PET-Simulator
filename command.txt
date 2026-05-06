@@ -37,16 +37,70 @@ python listmode_to_incomplete.py --input_dir /mnt/d/fyq/sinogram/reconstruction_
 
 python listmode_to_incomplete_new.py ^
     --input_dir "E:\data\pet_output\2000000000\listmode" ^
-    --output_dir "E:\data\pet_output\2000000000\listmode_i_60_120_240_300" ^
+    --output_dir "D:\data\pet_output\2000000000\listmode_i_6_9_13_16_24_26_32_34" ^
     --sinogram_dir "E:\data\pet_output\2000000000\sinogram" ^
     --num_events 2000000000 ^
     --visualize ^
-    --missing_start1 60 --missing_end1 120 ^
-    --missing_start2 240 --missing_end2 300
+    --missing_start1 60 --missing_end1 90 --missing_start2 130 --missing_end2 160 --missing_start3 240 --missing_end3 260 --missing_start4 320 --missing_end4 340
 
 python renamee_new.py ^
     --sinogram_dir   "E:\data\pet_output\2000000000\sinogram" ^
-    --incomplete_dir "E:\data\pet_output\2000000000\listmode_i_60_120_240_300\sinogram_incomplete" ^
-    --output_dir     "E:\data\pet_output\2000000000\2e9" ^
+    --incomplete_dir "D:\data\pet_output\2000000000\listmode_i_6_9_13_16_24_26_32_34\sinogram_incomplete" ^
+    --output_dir     "D:\data\pet_output\2000000000\2e9" ^
     --num_events     2000000000 ^
     --n_train        180
+
+python renamee_new.py ^
+    --sinogram_dir   "E:\data\pet_output\2000000000\sinogram" ^
+    --incomplete_dir "D:\data\pet_output\2000000000\listmode_i_6_9_13_16_24_26_32_34\sinogram_incomplete" ^
+    --output_dir     "D:\data\pet_output\2000000000\2e9" ^
+    --num_events     2000000000 ^
+    --n_train        180
+
+
+然后 [4] smooth.py 的路径改为：
+base_dirs = [r"D:\data\pet_output\2000000000\2e9\train",
+             r"D:\data\pet_output\2000000000\2e9\test"]
+output_base_dir = r"D:\data\pet_output\2000000000\2e9smooth"
+
+[5] split_sinogram_files.py 的路径改为：
+
+base_dirs = [r"E:\data\pet_output\2000000000\2e9smooth\train",
+             r"E:\data\pet_output\2000000000\2e9smooth\test"]
+output_base_dir = r"E:\data\pet_output\2000000000\2e9div_smooth"
+
+tar -czf "D:\data\pet_output\2000000000\2e9div_smooth.tar.gz" -C "C:\Users\MECHREVO\D\pet_output\2000000000" 2e9div_smooth
+
+tar -czf 2e9div_smooth.tar.gz -C "C:\Users\MECHREVO\D\pet_output\2000000000" 2e9div_smooth
+
+
+python verify_mask.py ^
+    --complete_npy   "D:\data\pet_output\2000000000\2e9\train\complete_1.npy" ^
+    --incomplete_npy "D:\data\pet_output\2000000000\2e9\train\incomplete_1.npy" ^
+    --slice_j        21 ^
+    --output         "mask_verify.png"
+
+
+python renamee_patch.py ^
+    --csv            "D:\data\pet_output\2000000000\2e9\rename_log.csv" ^
+    --sinogram_dir   "E:\data\pet_output\2000000000\sinogram" ^
+    --incomplete_dir "D:\data\pet_output\2000000000\listmode_i_6_9_13_16_24_26_32_34\sinogram_incomplete" ^
+    --output_dir     "D:\data\pet_output\2000000000\2e9_add" ^
+    --num_events     2000000000 ^
+    --n_train        180
+
+python renamee_patch2.py ^
+    --sinogram_dir   "D:\data\pet_output\2000000000\sinogram" ^
+    --incomplete_dir "D:\data\pet_output\2000000000\listmode_i_6_9_13_16_24_26_32_34\sinogram_incomplete" ^
+    --output_dir     "D:\data\pet_output\2000000000\2e9_add" ^
+    --num_events     2000000000 ^
+    --test_start     15
+
+
+tar -czf 2e9div_smooth_add.tar.gz -C "C:\Users\MECHREVO\D\pet_output\2000000000" 2e9div_smooth_add
+
+
+tar -xzf autodl-tmp/2e9div_smooth_add2.tar.gz -C autodl-tmp/
+
+
+cp autodl-tmp/2e9div_smooth_add/test/*.npy autodl-tmp/2e9div_smooth/test/
