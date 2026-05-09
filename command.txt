@@ -104,3 +104,37 @@ tar -xzf autodl-tmp/2e9div_smooth_add2.tar.gz -C autodl-tmp/
 
 
 cp autodl-tmp/2e9div_smooth_add/test/*.npy autodl-tmp/2e9div_smooth/test/
+
+python verify_mask.py ^
+    --complete_npy   "D:\data\pet_output\2000000000\2e9\train\complete_1.npy" ^
+    --incomplete_npy "D:\data\pet_output\2000000000\2e9\train\incomplete_1.npy" ^
+    --slice_j        66 ^
+    --output         "mask_verify.png"
+
+
+# 先查 test 集（问题应该最明显）
+python verify_pairs.py ^
+    --data_dir "C:\Users\MECHREVO\D\pet_output\2000000000\2e9div_smooth" ^
+    --split test ^
+    --check_all_i ^
+    --j 42
+
+# 再查 train 集
+python verify_pairs.py ^
+    --data_dir "C:\Users\MECHREVO\D\pet_output\2000000000\2e9div_smooth" ^
+    --split train ^
+    --check_all_i ^
+    --j 42
+
+
+现在的文件夹：
+C:\Users\MECHREVO\D\pet_output\2000000000\2e9div_smooth\test
+C:\Users\MECHREVO\D\pet_output\2000000000\2e9div_smooth\train
+是离散的sinogram
+以下是原来的没有split的sinogram
+base_dirs = [r"E:\data\pet_output\2000000000\2e9smooth\train",
+             r"E:\data\pet_output\2000000000\2e9smooth\test"]
+你可以看一下
+但是现在需要通过原来的complete sinogram divided，通过mask生成incomplete，然后再组装成完整的sinogram，然后再通过osem重建得到reconstruction
+通过原有的complete sinogram diveded，经过组装重建得到原图，
+然后两个图各自保存到某个文件夹中，你看看是否有现成的python文件。如果没有就自己写。
