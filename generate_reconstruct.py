@@ -70,9 +70,10 @@ num_events = int(2e9)
 save_events_pos = False
 
 # 流水线模式开关：
-#   'simulate_only' - 只模拟并保存 listmode（内存友好，适合大 num_events）
+#   'sinogram_only' - 只模拟并保存 sinogram，不保存 listmode（存储最省，适合大 num_events）
+#   'simulate_only' - 模拟并保存 listmode + sinogram，不重建
 #   'full'          - 模拟 + 重建一体（适合验证小批量）
-PIPELINE_MODE = 'simulate_only'
+PIPELINE_MODE = 'sinogram_only'
 
 def save_events_background(file_path, events, save_full_data=False):
     """Save events in a background thread to avoid blocking the main process."""
@@ -104,15 +105,17 @@ def process_and_save_sinogram_background(events, info, output_path, log_dir=None
         
         # Generate sinogram
         sinogram = gate.listmode_to_sinogram(detector_ids, info)
-        
+
         # Cleanup detector_ids to save memory
         del detector_ids
-        
+
+        # Convert to numpy once here so it's always available for saving below
+        sinogram_np = sinogram.numpy()
+
         # Optional visualization
         if log_dir is not None and image_filename is not None:
             try:
                 # 获取正弦图形状和数据
-                sinogram_np = sinogram.numpy()
                 sinogram_shape = sinogram_np.shape
                 print(f"Sinogram shape: {sinogram_shape}")
                 
@@ -318,7 +321,8 @@ def main():
     output_dir_sinogram = rf"E:\data\pet_output\{num_events:d}\sinogram"
 
     # Create directories
-    os.makedirs(lmf_output_dir, exist_ok=True)
+    if PIPELINE_MODE != 'sinogram_only':
+        os.makedirs(lmf_output_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(output_dir_sinogram, exist_ok=True)
 
@@ -327,10 +331,13 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
     print(f"Log directory: {log_dir}")
 
-    # Create and cache the scanner LUT for reuse
-    lut_data = np.loadtxt(lut_file, skiprows=1)
-    scanner_lut_np = lut_data[:, 1:4]
-    scanner_lut = torch.from_numpy(scanner_lut_np).float()
+    # Create and cache the scanner LUT for reuse (only needed for 'full' mode)
+    if PIPELINE_MODE == 'full':
+        lut_data = np.loadtxt(lut_file, skiprows=1)
+        scanner_lut_np = lut_data[:, 1:4]
+        scanner_lut = torch.from_numpy(scanner_lut_np).float()
+    else:
+        scanner_lut = None
 
     # Set up thread pool for managing parallel operations
     max_parallel_processes = min(8, os.cpu_count())
@@ -356,7 +363,11 @@ def main():
         # Skip already-processed files so the run can be safely resumed after interruption
         sinogram_done = os.path.join(output_dir_sinogram, f"reconstructed_{image_filename}.npy")
         listmode_done = os.path.join(lmf_output_dir, f"listmode_{image_filename}.npz")
-        if os.path.exists(sinogram_done) and os.path.exists(listmode_done):
+        if PIPELINE_MODE == 'sinogram_only':
+            already_done = os.path.exists(sinogram_done)
+        else:
+            already_done = os.path.exists(sinogram_done) and os.path.exists(listmode_done)
+        if already_done:
             print(f"[{idx+1}/{len(image_paths)}] Skipping {image_filename} (already done)")
             continue
 
@@ -376,12 +387,26 @@ def main():
         print(f"Generated {len(events)} valid events in {simulation_time:.2f} seconds.")
         
         # Generate output filenames
-        minimal_file = os.path.join(lmf_output_dir, f"listmode_{image_filename}")
         out_name = f"reconstructed_{image_filename}"
+        if PIPELINE_MODE != 'sinogram_only':
+            minimal_file = os.path.join(lmf_output_dir, f"listmode_{image_filename}")
         out_path = os.path.join(output_dir, out_name)
         out_path_sinogram = os.path.join(output_dir_sinogram, out_name)
         
-        if PIPELINE_MODE == 'simulate_only':
+        if PIPELINE_MODE == 'sinogram_only':
+            # ── 只模拟，仅保存 sinogram，不保存 listmode ──────────────────
+            sinogram_thread = process_and_save_sinogram_background(
+                events=events,
+                info=info,
+                output_path=out_path_sinogram,
+                log_dir=log_dir,
+                image_filename=image_filename
+            )
+            sinogram_thread.join()
+            del events, simulator, image
+            gc.collect()
+
+        elif PIPELINE_MODE == 'simulate_only':
             # ── 只模拟，保存 listmode + sinogram，不重建 ──────────────────
             events_thread = save_events_background(minimal_file, events, save_full_data=False)
             sinogram_thread = process_and_save_sinogram_background(
@@ -443,12 +468,13 @@ def main():
         print(f"Elapsed total time: {t_end_total - t_start_total:.1f}s")
 
     print("\nAll processing complete!")
-    if PIPELINE_MODE == 'simulate_only':
-        print(f"Listmode saved to: {lmf_output_dir}")
+    if PIPELINE_MODE == 'sinogram_only':
+        print(f"Sinogram  saved to: {output_dir_sinogram}")
+        print(f"\nNext step: python sinogram_reconstruction.py --sinogram_dir {output_dir_sinogram} --output_dir {output_dir}")
+    elif PIPELINE_MODE == 'simulate_only':
+        print(f"Listmode  saved to: {lmf_output_dir}")
         print(f"Sinogram  saved to: {output_dir_sinogram}")
         print(f"\nNext step: python reconstruction_all.py --lmf_root {lmf_output_dir} --lut_file detector_lut.txt --output_dir {output_dir}")
-    
-    print("\nAll processing complete!")
 
 if __name__ == "__main__":
     main()
