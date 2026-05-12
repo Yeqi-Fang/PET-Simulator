@@ -316,9 +316,9 @@ def main():
     # output_dir_sinogram = f'/mnt/d/fyq/sinogram/reconstruction_npy_full_train/{num_events:d}/sinogram'
 
     base_dir = "/root/autodl-tmp/ADNI_MCI_npy_processed/"
-    lmf_output_dir = rf"/root/autodl-tmp/pet_output\{num_events:d}\listmode"
-    output_dir     = rf"/root/autodl-tmp/pet_output\{num_events:d}"
-    output_dir_sinogram = rf"/root/autodl-tmp/pet_output\{num_events:d}\sinogram"
+    lmf_output_dir = rf"/root/autodl-tmp/pet_output/{num_events:d}/listmode"
+    output_dir     = rf"/root/autodl-tmp/pet_output/{num_events:d}"
+    output_dir_sinogram = rf"/root/autodl-tmp/pet_output/{num_events:d}/sinogram"
 
     # Create directories
     if PIPELINE_MODE != 'sinogram_only':
