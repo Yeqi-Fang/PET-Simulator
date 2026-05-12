@@ -75,7 +75,7 @@ class PETSimulator:
         }
 
         if use_multiprocessing:
-            num_processes = min(mp.cpu_count(), 16)  # Limit to number of events or available CPUs
+            num_processes = min(mp.cpu_count(), 13)  # Limit to number of events or available CPUs
             batch_size = num_events // num_processes
             n_cols = 5 if self.save_events_pos else 2
 
