@@ -110,9 +110,8 @@ def smooth_sinogram_files(base_dir, output_base_dir, info, batch_size=1):
 
 def main():
     # Paths
-    base_dirs = [r"D:\data\pet_output\2000000000\2e9_add\train",
-                r"D:\data\pet_output\2000000000\2e9_add\test"]
-    output_base_dir = r"D:\data\pet_output\2000000000\2e9smooth_add"
+    base_dirs = [r"/root/autodl-tmp/pet_output/2000000000/sinogram/"]
+    output_base_dir = r"/root/autodl-tmp/pet_output/2000000000/2e9smooth_MCI"
     
     # Process both train and test directories
     for base_dir in base_dirs:
