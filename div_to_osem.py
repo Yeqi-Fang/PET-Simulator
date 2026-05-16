@@ -98,15 +98,24 @@ def get_cases(directory: str, fmt: str):
         return [(cid, cid) for cid in ids]
 
     elif fmt == 'mci_subject_j':
-        subjects = set()
-        for f in os.listdir(directory):
-            if f.startswith('reconstructed_') and f.endswith('.npy'):
-                stem = f[len('reconstructed_'):-4]      # e.g. '073_S_6669_1'
-                parts = stem.rsplit('_', 1)
-                if len(parts) == 2 and parts[1].isdigit():
-                    subjects.add(parts[0])
-        subjects = sorted(subjects)
-        # output_id: 1-based 整数; loader_key: subject 字符串
+        # 优先读 dataset.py 写下的 index 文件，保证与训练编号完全一致
+        index_path = os.path.join(os.path.dirname(directory.rstrip('/\\')),
+                                  'mci_subjects_index.txt')
+        if os.path.exists(index_path):
+            with open(index_path) as f:
+                subjects = [l.strip() for l in f if l.strip()]
+            print(f"  [MCI] 使用固定 index：{index_path}（{len(subjects)} 个患者）")
+        else:
+            # fallback：扫目录并按字典序排序（与 dataset.py 逻辑完全相同）
+            subjects = set()
+            for f in os.listdir(directory):
+                if f.startswith('reconstructed_') and f.endswith('.npy'):
+                    stem = f[len('reconstructed_'):-4]
+                    parts = stem.rsplit('_', 1)
+                    if len(parts) == 2 and parts[1].isdigit():
+                        subjects.add(parts[0])
+            subjects = sorted(subjects)
+            print(f"  [MCI] 警告：未找到 index 文件，按字典序排序（{len(subjects)} 个患者）")
         return [(str(idx + 1), subj) for idx, subj in enumerate(subjects)]
 
     elif fmt == 'healthy_3d':
@@ -119,10 +128,19 @@ def get_cases(directory: str, fmt: str):
                 split = 'test'; break
         if split is None:
             raise ValueError(f"无法从文件名判断 train/test：{directory}")
-        pat = re.compile(rf'^reconstructed_3d_image_(\d+)_{split}_\d+\.npy$')
-        xs = sorted({int(m.group(1)) for f in os.listdir(directory)
-                     if (m := pat.match(f))})
-        # output_id: 1-based 整数; loader_key: (x 值, split)
+
+        # 优先读 index 文件
+        index_path = os.path.join(os.path.dirname(directory.rstrip('/\\')),
+                                  'healthy_xs_index.txt')
+        if os.path.exists(index_path):
+            with open(index_path) as f:
+                xs = [int(l.strip()) for l in f if l.strip()]
+            print(f"  [Healthy] 使用固定 index：{index_path}（{len(xs)} 个患者）")
+        else:
+            pat = re.compile(rf'^reconstructed_3d_image_(\d+)_{split}_\d+\.npy$')
+            xs = sorted({int(m.group(1)) for f in os.listdir(directory)
+                         if (m := pat.match(f))})
+            print(f"  [Healthy] 警告：未找到 index 文件，按数值排序（{len(xs)} 个患者）")
         return [(str(idx + 1), (x, split)) for idx, x in enumerate(xs)]
 
     raise ValueError(f"未知格式：{fmt}")
