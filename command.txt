@@ -138,3 +138,9 @@ base_dirs = [r"E:\data\pet_output\2000000000\2e9smooth\train",
 但是现在需要通过原来的complete sinogram divided，通过mask生成incomplete，然后再组装成完整的sinogram，然后再通过osem重建得到reconstruction
 通过原有的complete sinogram diveded，经过组装重建得到原图，
 然后两个图各自保存到某个文件夹中，你看看是否有现成的python文件。如果没有就自己写。
+
+
+
+python compute_missing_coincidence.py ^
+    --sinograms "D:\pet_output_healthy\2000000000\2e9smooth_healthy\train\reconstructed_3d_image_0_train.npy" "D:\pet_output_healthy\2000000000\2e9smooth_healthy\train\reconstructed_3d_image_1_train.npy" "D:\pet_output_healthy\2000000000\2e9smooth_healthy\train\reconstructed_3d_image_2_train.npy" ^
+    --missing_sectors "120, 185"
