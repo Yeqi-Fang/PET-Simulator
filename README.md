@@ -1,171 +1,180 @@
 # PET Reconstruction Pipeline
 
-This project implements a comprehensive pipeline for PET (Positron Emission Tomography) simulation, reconstruction, and analysis, with special emphasis on handling incomplete ring geometries.
-
-## Project Overview
-
-The PET Reconstruction Pipeline provides tools for:
-
-1. **Simulating PET data**: Generate realistic PET listmode data from 3D activity distributions
-2. **Reconstructing images**: Convert listmode data to 3D volumes using OSEM algorithm
-3. **Creating and analyzing sinograms**: Generate sinogram representations of PET data
-4. **Supporting incomplete ring geometries**: Simulate and analyze incomplete PET scanner configurations
-5. **Advanced visualization**: Compare complete vs. incomplete ring data with detailed visualizations
+Graduation thesis project for simulating and reconstructing PET images with incomplete detector ring geometries. The pipeline generates synthetic PET data, processes sinograms, and reconstructs 3D volumes via OSEM.
 
 ## Project Structure
 
 ```
-pet_reconstruction/
-├── data/
-│   └── dataset/
-│       └── train_npy_crop/         # Input 3D activity distribution images
-├── log/                            # Log directories with timestamp subfolders
-├── pet_simulator/                  # PET simulation package
-│   ├── __init__.py
-│   ├── geometry.py                 # PET scanner geometry definitions
-│   ├── simulator.py                # Core PET event simulation
-│   ├── numba_utils.py              # Accelerated numerical functions
-│   └── utils.py                    # Utilities for saving/loading data
-├── main.py                         # Main simulation & reconstruction pipeline
-├── generate_reconstruct.py         # Enhanced reconstruction with visualizations
-├── reconstruction_all.py           # Batch reconstruction from listmode data
-├── listmode_to_incomplete.py       # Convert complete data to incomplete ring data
-├── enhanced_visualization.py       # Advanced visualization utilities
-├── outlier_detection.py            # Functions for outlier detection and removal
-└── README.md                       # This file
+graduation-thesis2/
+├── pet_simulator/          # PET scanner simulation package
+├── pipeline/               # Data generation and preprocessing
+├── reconstruction/         # OSEM reconstruction scripts
+├── analysis/               # Metrics, visualization, and notebooks
+├── utils/                  # Helper and verification tools
+├── scripts/                # Shell runner scripts (run from project root)
+├── spare/                  # Archived legacy code (reference only)
+├── log/                    # Timestamped output logs
+├── paper_image/            # Publication-quality figures
+├── detector_lut.txt        # Scanner geometry lookup table (364 crystals × 42 rings)
+└── command.txt             # Command history and pipeline notes
 ```
 
-## Output Directory Structure
+---
+
+## pet_simulator/
+
+PET scanner simulation package (Python package with `__init__.py`).
+
+| File | Description |
+|------|-------------|
+| `geometry.py` | Scanner geometry dataclass (radius 253.71 mm, 42 rings) |
+| `simulator.py` | Monte Carlo event simulation engine, multiprocessing-capable |
+| `numba_utils.py` | Numba-accelerated numerical kernels |
+| `utils.py` | Save/load utilities for events and detector LUT |
+
+---
+
+## pipeline/
+
+Data generation and preprocessing. Run scripts from the **project root**:
+
+```bash
+python pipeline/<script>.py [args]
+```
+
+| File | Description |
+|------|-------------|
+| `listmode_to_incomplete_new.py` | Filter complete listmode data by missing detector sectors to simulate incomplete rings |
+| `sinogram_reconstruction.py` | Reconstruct 3D volumes directly from sinogram directories using OSEM |
+| `smooth.py` | Apply Gaussian smoothing to sinogram `.npy` files |
+| `split_sinogram_files.py` | Split full sinograms (1764 slices) into individual axial slice files |
+| `renamee_new.py` | Organize complete/incomplete sinograms into `train/test` splits with standardized naming |
+| `prepare_dataset.py` | Prepare datasets for model training |
+| `resize_normalize.py` | Resize and normalize PET image volumes |
+| `rotate_new_data.py` | Rotate image volumes to canonical orientation |
+
+### Typical pipeline order
 
 ```
-sinogram/
-└── reconstruction_npy_full_train/
-    ├── <num_events>/               # Results organized by event count
-    │   ├── listmode/               # Listmode data (.npz files)
-    │   ├── sinogram/               # Complete sinograms (.npy files)
-    │   ├── incomplete/             # Incomplete ring data
-    │   │   ├── listmode_incomplete/    # Filtered listmode data
-    │   │   ├── sinogram_incomplete/    # Incomplete sinograms
-    │   │   └── log_incomplete/         # Logs and visualizations
-    │   └── reconstructed*.npy      # Reconstructed 3D volumes
-    └── ...
+listmode_to_incomplete_new.py
+    → sinogram_reconstruction.py
+        → smooth.py
+            → split_sinogram_files.py
+                → renamee_new.py
 ```
 
-## Installation and Dependencies
+---
 
-### Requirements
+## reconstruction/
+
+OSEM reconstruction from assembled sinogram slices.
+
+| File | Description |
+|------|-------------|
+| `div_osem_masked.py` | **Main script.** Assemble divided sinogram slices, apply missing-sector mask, then OSEM reconstruct. Supports AD/MCI/Healthy/predicted data formats. |
+| `div_to_osem.py` | Same as above without masking; used for complete-ring reconstruction. |
+| `generate_reconstruct.py` | End-to-end simulation + reconstruction pipeline (uses `pet_simulator`). |
+| `reconstruction_all.py` | Batch reconstruction directly from listmode `.npz` files. |
+
+---
+
+## analysis/
+
+Metrics computation, quality visualization, and paper figures.
+
+| File | Description |
+|------|-------------|
+| `calculate_metric.ipynb` | Compute SSIM, PSNR, MSE across all reconstruction results |
+| `paper_plot.ipynb` | Generate publication-quality figures for the thesis |
+| `view_sinogram.ipynb` | Interactive sinogram viewer |
+| `enhanced_visualization.py` | Multi-view comparison of complete vs. incomplete ring reconstructions |
+| `compare_reconstruction_restoration.py` | Side-by-side: original reconstruction vs. model-restored image |
+| `compute_missing_coincidence.py` | Compute coincidence-line statistics for missing detector sectors |
+| `outlier_detection.py` | Global, local, and edge outlier detection and removal |
+
+---
+
+## utils/
+
+Verification and conversion tools.
+
+| File | Description |
+|------|-------------|
+| `verify_mask.py` | Visualize and verify mask application on sinogram pairs |
+| `verify_pairs.py` | Check all complete/incomplete `.npy` pairs for consistency |
+| `find_duplicates.py` | Detect duplicate data files across directories |
+| `npy2mat.py` | Convert `.npy` arrays to MATLAB `.mat` format |
+| `npz2npy.py` | Extract `.npy` files from compressed `.npz` archives |
+
+---
+
+## scripts/
+
+Shell scripts for batch execution on Linux/remote servers. Always run from the **project root**:
+
+```bash
+bash scripts/run_osem.sh
+```
+
+| File | Description |
+|------|-------------|
+| `run_osem.sh` | Batch OSEM reconstruction for AD, MCI, and Healthy datasets (complete + predicted) |
+| `wait_and_div_to_osem.sh` | Wait for a running process (by PID), then launch `div_to_osem.py` |
+| `run_incomplete_conversion.sh` | Run the incomplete ring data generation pipeline |
+
+---
+
+## spare/
+
+Archived legacy and experimental code kept for reference. Not part of the active pipeline.
+
+Contents include early simulation notebooks, differential-privacy PET experiments (`DP-PET/`), MATLAB reconstruction scripts (`matlab/`), and previous iterations of core scripts (`old/`).
+
+---
+
+## Data flow
+
+```
+3D activity images (.npy)
+    │
+    ▼ pet_simulator / generate_reconstruct.py
+Complete listmode events (.npz)
+    │
+    ├──▶ pipeline/sinogram_reconstruction.py ──▶ Complete sinograms
+    │
+    └──▶ pipeline/listmode_to_incomplete_new.py ──▶ Incomplete listmode
+                                                         │
+                                                         ▼
+                                                 pipeline/sinogram_reconstruction.py
+                                                         │
+                                                         ▼
+                                                 Incomplete sinograms
+    │
+    ▼ pipeline/smooth.py ──▶ pipeline/split_sinogram_files.py
+Smoothed divided sinograms (per axial slice)
+    │
+    ▼ pipeline/renamee_new.py
+train/complete_i.npy + train/incomplete_i.npy
+    │
+    ▼ reconstruction/div_osem_masked.py (or div_to_osem.py)
+Reconstructed 3D volumes (80×128×128)
+    │
+    ▼ analysis/calculate_metric.ipynb
+SSIM / PSNR / MSE metrics
+```
+
+---
+
+## Dependencies
 
 - Python 3.9+
-- PyTorch
-- NumPy
-- Matplotlib
-- Numba (for acceleration)
-- pytomography (for reconstruction)
+- `pytomography` (OSEM reconstruction)
+- `torch`, `numpy`, `scipy`, `matplotlib`
+- `numba` (simulation acceleration)
+- `tqdm`
 
-### Setup
-
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd pet-reconstruction
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install torch numpy matplotlib numba
-   # Install pytomography according to its documentation
-   ```
-
-## Usage Examples
-
-### 1. Full Simulation and Reconstruction Pipeline
-
-Run the main simulation and reconstruction pipeline:
-
+Install:
 ```bash
-python main.py
+pip install torch numpy scipy matplotlib numba tqdm
+# install pytomography per its documentation
 ```
-
-This will:
-- Load 3D activity distributions from `data/dataset/train_npy_crop/`
-- Simulate PET events using a defined scanner geometry
-- Save listmode data and generate sinograms
-- Reconstruct 3D volumes using OSEM
-- Create visualizations in the log directory
-
-### 2. Convert Complete Listmode Data to Incomplete Ring Data
-
-Generate incomplete ring data by removing detector sectors:
-
-```bash
-python listmode_to_incomplete.py \
-    --input_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_train/2000000000/listmode \
-    --output_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_train/2000000000/incomplete \
-    --sinogram_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_train/2000000000/sinogram \
-    --num_events 2000000000 \
-    --visualize \
-    --missing_start1 30 --missing_end1 90 \
-    --missing_start2 210 --missing_end2 270
-```
-
-This simulates a PET scanner with two 60-degree missing sectors and generates comparison visualizations.
-
-### 3. Batch Reconstruction
-
-Reconstruct multiple listmode files:
-
-```bash
-python reconstruction_all.py \
-    --lmf_root /mnt/d/fyq/sinogram/reconstruction_npy_full_train/2000000000/listmode \
-    --lut_file detector_lut.txt \
-    --output_dir /mnt/d/fyq/sinogram/reconstruction_npy_full_train/2000000000 \
-    --outlier False
-```
-
-## Key Components
-
-### PET Simulator
-
-The `pet_simulator` package contains:
-- Geometric definitions of the PET scanner
-- Monte Carlo simulation for positron annihilation events
-- Ray-tracing to detect coincident events
-- Efficient event generation using Numba-accelerated functions
-
-### Reconstruction
-
-Reconstruction is handled by:
-- `PETLMSystemMatrix` for system modeling
-- OSEM algorithm for iterative reconstruction
-- Optional PSF correction and outlier removal
-
-### Visualization
-
-The project includes enhanced visualization capabilities:
-- Multi-slice sinogram visualizations
-- Complete vs. incomplete ring comparisons
-- 3D volume visualizations from multiple perspectives
-- Side-by-side comparison of original and reconstructed images
-
-### Incomplete Ring Simulation
-
-The incomplete ring functionality:
-- Simulates missing detector sectors by angular position
-- Filters listmode data to remove events involving missing detectors
-- Generates comparison visualizations to show the impact of missing data
-- Provides tools to analyze the effects on reconstruction quality
-
-## Performance Optimizations
-
-- Multithreaded processing for I/O operations
-- Numba acceleration for computationally intensive functions
-- Background processing for file saving and visualization generation
-- Memory-efficient data handling for large datasets
-
-## Contributing
-
-To contribute to this project:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request with your changes
-

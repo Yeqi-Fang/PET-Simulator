@@ -5,7 +5,10 @@
 
 set -e   # 任意命令失败立即退出
 
-SCRIPT="python div_to_osem.py"
+# 切换到项目根目录（脚本可从任意位置调用）
+cd "$(dirname "$0")/.."
+
+SCRIPT="python reconstruction/div_to_osem.py"
 
 # ── 路径配置 ──────────────────────────────────────────────────────────────────
 AD_COMPLETE=/root/autodl-tmp/2e9div_smooth_AD

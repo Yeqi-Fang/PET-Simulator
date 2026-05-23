@@ -21,8 +21,8 @@ if [ ! -d "$PROJECT_DIR" ]; then
 fi
 echo "[$(date '+%H:%M:%S')] 项目目录确认: $PROJECT_DIR"
 
-if [ ! -f "$PROJECT_DIR/div_to_osem.py" ]; then
-    echo "ERROR: 在 $PROJECT_DIR 中找不到 div_to_osem.py，请检查路径。" >&2
+if [ ! -f "$PROJECT_DIR/reconstruction/div_to_osem.py" ]; then
+    echo "ERROR: 在 $PROJECT_DIR/reconstruction 中找不到 div_to_osem.py，请检查路径。" >&2
     exit 1
 fi
 
@@ -36,7 +36,7 @@ echo "[$(date '+%H:%M:%S')] PID $WAIT_PID 已结束。"
 # ── 3. 运行 div_to_osem.py ───────────────────────────────────────────────────
 echo "[$(date '+%H:%M:%S')] 开始运行 div_to_osem.py ..."
 cd "$PROJECT_DIR"
-python div_to_osem.py \
+python reconstruction/div_to_osem.py \
     --input_base  /root/autodl-tmp/2e9div_smooth \
     --output_dir  /root/autodl-tmp/osem_complete \
     --prefix      complete \
